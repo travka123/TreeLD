@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>App</title>
+		<link rel="icon" href="/favicon.ico">
+		<style>
+			html, body { margin: 0; height: 100%; }
+			#canvas-main { width: 100%; height: 100%; display: block; }
+		</style>
+	</head>
+	<body>
+		<canvas id="canvas-main">Please use a browser that supports "canvas"</canvas> 
+		<video id="video-main" crossorigin="anonymous" hidden>
+			<source src="https://vid.videoform.com/06-28-36-7c88de5c-7a1c-4edc-829e-59f3ad291264.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
+		</video>
+	</body>
+
+	<script>
+
+		const FLOOR_TEXTURE_URL = 'https://i.ibb.co/4Png7Yg/grey-stone-texture-pattern-patchwork-tile-tiled-background.jpg';
+		const TABLE_LEG_TEXTURE_URL = 'https://i.ibb.co/VSPzdns/leg.jpg';
+		const TABLE_SURFACE_TEXTURE_URL = 'https://i.ibb.co/n32DPYC/surface.jpg';
+		const LETTER1_TEXTURE_URL = 'https://i.ibb.co/59Xkr8Z/letter1.jpg';
+		const LETTER2_TEXTURE_URL = 'https://i.ibb.co/g9B6Qn3/letter2.jpg';
+		const LETTER3_TEXTURE_URL = 'https://i.ibb.co/Mszc7tf/letter3.jpg';
+		const LETTER4_TEXTURE_URL = 'https://i.ibb.co/g7DNMHf/letter4.jpg';
+		const LETTER5_TEXTURE_URL = 'https://i.ibb.co/5cFffKH/letter5.jpg';
+		const LETTER6_TEXTURE_URL = 'https://i.ibb.co/K6qgkPp/letter6.jpg';
+		const BCAKGROUND_TEXTURE_URL = 'https://i.ibb.co/cNPSnvG/space.jpg';
+
+		(async function() {
+
+const THREE = await import('https://cdn.skypack.dev/pin/three@v0.136.0-4Px7Kx1INqCFBN0tXUQc/mode=imports/optimized/three.js');
+
+class FirstPersonCamera extends THREE.PerspectiveCamera {
+
+    moveDirection = {
+        forward: false,
+        back: false,
+        left: false,
+        right: false,
+    };
+
+    latitude = 0;
+    longitude = 0;
+
+    mouseOffset = {
+        x: 0,
+        y: 0,
+    }
+
+    moveSpeed = 5;
+
+    verticalMouseSpeed = 0.4;
+    horizontalMouseSpeed = 0.4;
+
+    maxVerticalAngle = 85;
+
+    constructor(fov, aspect, near, far) {
+        super(fov, aspect, near, far);
+    }
+
+    update(delta) {
+        {
+            const lookDirection = this.handleCameraRotation();
+
+            const movingDirection = new THREE.Vector3(0, 0, 0);
+
+            if (this.moveDirection.forward != this.moveDirection.back) {
+                if (this.moveDirection.forward) {
+                    movingDirection.z += lookDirection.z;
+                    movingDirection.x += lookDirection.x;
+                }
+                else {
+                    movingDirection.z -= lookDirection.z;
+                    movingDirection.x -= lookDirection.x;
+                }
+            }
+
+            if (this.moveDirection.left != this.moveDirection.right) {
+                if (this.moveDirection.right) {
+                    movingDirection.z += lookDirection.x;
+                    movingDirection.x -= lookDirection.z;
+                }
+                else {
+                    movingDirection.z -= lookDirection.x;
+                    movingDirection.x += lookDirection.z;
+                }
+            }
+
+            this.position.addScaledVector(movingDirection.normalize(), this.moveSpeed * delta);
+
+            this.lookAt(lookDirection.add(this.position));
+        }
+    }
+
+    handleCameraRotation() {
+        this.latitude += this.mouseOffset.y * this.verticalMouseSpeed;
+        this.latitude = Math.max(-90, Math.min(this.latitude, 90));
+
+        this.longitude += this.mouseOffset.x * this.horizontalMouseSpeed;
+        if (Math.abs(this.longitude) > 180) {
+            if (this.longitude > 0) {
+                this.longitude = -360 + this.longitude;
+            } else {
+                this.longitude = 360 + this.longitude;
+            }
+        }
+
+        this.mouseOffset.x = this.mouseOffset.y = 0;
+
+        const phi = THREE.MathUtils.degToRad(90 - THREE.MathUtils.mapLinear(
+                this.latitude, 
+                -90, 90, 
+                -this.maxVerticalAngle, this.maxVerticalAngle 
+            )
+        );
+            
+        const theta = -THREE.MathUtils.degToRad(this.longitude);
+
+        return new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+    }
+}
+
+class SceneControl extends THREE.Scene {
+    _objects = [];
+
+    updateHandlers = [];
+
+    constructor () {
+        super();
+    }
+
+    add(mesh) {
+        this._objects.push(mesh);
+        super.add(mesh);
+    }
+
+    update(camera, delta) {
+        const context = {
+            camera, delta
+        };
+
+        this.updateHandlers.forEach((func) => func(context));
+    }
+}
+
+const video = document.querySelector('#video-main');
+const canvas = document.querySelector('#canvas-main');
+
+canvas.requestPointerLock = canvas.requestPointerLock ||
+           canvas.mozRequestPointerLock ||
+           canvas.webkitRequestPointerLock;
+
+main();
+
+function main() {
+
+    
+
+    const renderer = new THREE.WebGLRenderer({canvas, antialias: true});
+    renderer.shadowMap.enabled = true;
+
+    const camera = new FirstPersonCamera(75,window.innerWidth / window.innerHeight, 0.01, 100 );
+    camera.position.set(1, 1, -1);
+
+    const sceneControl = new SceneControl();
+
+    buildScene(sceneControl, renderer);
+
+    canvas.addEventListener('click', function() { 
+        video.play();
+    });
+
+    canvas.addEventListener('click', function() {
+        canvas.requestPointerLock();
+    });
+
+    const setMoving = function(code, state) {
+        switch (code) {
+            case 'KeyW':
+                camera.moveDirection.forward = state;
+                break;
+
+            case 'KeyS':
+                camera.moveDirection.back = state;
+                break;
+
+            case 'KeyA':
+                camera.moveDirection.left = state;
+                break;
+
+            case 'KeyD':
+                camera.moveDirection.right = state;
+                break;
+        }
+    }
+
+    document.addEventListener('keydown', function(e) {
+        setMoving(e.code, true);
+    });
+
+    document.addEventListener('keyup', function(e) {
+        setMoving(e.code, false);
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        camera.mouseOffset.x += e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+        camera.mouseOffset.y -= e.movementY || e.mozMovementY || e.webkitMovementY || 0;
+    });
+
+    const clock = new THREE.Clock(true);
+
+    const render = function() {
+        requestAnimationFrame(render);
+
+        adjustCameraAspect(camera, canvas);
+        adjustDrawingBufferSize(renderer, canvas);
+
+        const delta = clock.getDelta();
+        camera.update(delta);
+        sceneControl.update(camera, delta);
+
+        camera.updateProjectionMatrix();
+
+        renderer.render(sceneControl, camera);
+    }
+
+    requestAnimationFrame(render);
+}
+
+function buildScene(scene, renderer) {
+
+    const loader = new THREE.TextureLoader();
+
+	try {
+    	scene.background = new THREE.CubeTextureLoader().load([
+			BCAKGROUND_TEXTURE_URL, BCAKGROUND_TEXTURE_URL,
+        	BCAKGROUND_TEXTURE_URL, BCAKGROUND_TEXTURE_URL,
+        	BCAKGROUND_TEXTURE_URL, BCAKGROUND_TEXTURE_URL,
+    	]);
+	} 
+	catch {
+		alert('error');
+	}
+
+    //floor
+    {
+        const floorSize = 3.5;
+
+        const geometry = new THREE.PlaneGeometry(floorSize, floorSize);
+        const texture = loader.load(FLOOR_TEXTURE_URL);
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(2, 2);
+        const material = new THREE.MeshPhongMaterial( { 
+            map: texture,
+            side: THREE.DoubleSide,
+        } );
+        const floor = new THREE.Mesh(geometry, material);
+        floor.receiveShadow = true;
+        floor.rotateX(-Math.PI / 2);
+        scene.add(floor);
+
+		
+		{
+			const geometry = new THREE.BoxGeometry(floorSize, -0.01, floorSize);
+			const material = new THREE.MeshPhongMaterial({color: 0xffffff});
+			const fakeMesh = new THREE.Mesh(geometry, material);
+			fakeMesh.castShadow = true;
+			fakeMesh.position.set(0, -0.1, 0);
+			scene.add(fakeMesh);
+		}
+
+        scene.updateHandlers.push(function(context) {
+            const camera = context.camera;
+            const halfFloorSize = floorSize / 2;
+            if (camera) {
+                if (Math.abs(camera.position.x) > halfFloorSize ) {
+                    camera.position.x = camera.position.x > 0 ? halfFloorSize : -halfFloorSize;
+                }
+                if (Math.abs(camera.position.z) > halfFloorSize ) {
+                    camera.position.z = camera.position.z > 0 ? halfFloorSize : -halfFloorSize;
+                }
+            }
+        });
+    }
+
+    const table = new THREE.Object3D();
+
+    //table
+    {
+        const height = 0.6;
+        const surfaceHeight = 0.05;
+        const surfaceSize = {x: 1, z: 1.4};
+
+        //table legs
+        {
+            const legHeight = height - surfaceHeight / 2;
+            const geometry = new THREE.BoxGeometry(0.1, legHeight, 0.1);
+            const material = new THREE.MeshPhongMaterial( {
+                map: loader.load(TABLE_LEG_TEXTURE_URL)
+            } );
+            for (let i = 0; i < 4; i++) {
+                const leg = new THREE.Mesh(geometry, material);
+                leg.castShadow = true;
+                leg.receiveShadow = true;
+                leg.position.set(i % 2 ? 0.3 : -0.3, legHeight / 2, i > 1 ? 0.4 : -0.4);
+                table.add(leg);
+            }
+        }
+
+        //table surface
+        {
+            const geometry = new THREE.BoxGeometry(surfaceSize.x, surfaceHeight, surfaceSize.z);
+            const texture = loader.load(TABLE_SURFACE_TEXTURE_URL);
+            texture.magFilter = THREE.NearestFilter;
+            const material = new THREE.MeshPhongMaterial( {
+                map: texture
+            } );
+            const surface = new THREE.Mesh(geometry, material);
+            surface.castShadow = true;
+            surface.receiveShadow = true;
+            surface.position.set(0, height - surfaceHeight / 2, 0);
+            table.add(surface);
+        }
+
+        table.position.set(-1, 0, 1.2);
+        table.rotateY(Math.PI / 5);
+
+        table.putOn = function(obj, x, z) {
+            obj.position.set(surfaceSize.x / 2 * x, height, surfaceSize.z / 2 * z);
+            table.add(obj);
+        }
+
+        scene.updateHandlers.push(function(context) {
+            const localCameraPosition = new THREE.Vector3().copy(context.camera.position);
+            table.worldToLocal(localCameraPosition);
+
+            const halfSurfaceSize = { x: surfaceSize.x / 2, z: surfaceSize.z / 2 };
+
+            if ((Math.abs(localCameraPosition.x) < halfSurfaceSize.x) &&
+                (Math.abs(localCameraPosition.z) < halfSurfaceSize.z)) {
+                if (halfSurfaceSize.x - Math.abs(localCameraPosition.x) <
+                    (halfSurfaceSize.z - Math.abs(localCameraPosition.z))) {
+                    localCameraPosition.x = localCameraPosition.x > 0 ? halfSurfaceSize.x : -halfSurfaceSize.x;
+                } else {
+                    localCameraPosition.z = localCameraPosition.z > 0 ? halfSurfaceSize.z : -halfSurfaceSize.z;
+                }
+            }
+
+            context.camera.position.copy(table.localToWorld(localCameraPosition));
+        });
+
+        scene.add(table);
+    }
+
+    //oracle
+    {
+        const oracle = new THREE.Object3D();
+
+        const sphereSize = 0.14;
+        const standRad = 0.1;
+        const standHeight = 0.3;
+
+        {
+            const geometry = new THREE.SphereGeometry(sphereSize, 32, 16);
+            const material = new THREE.MeshBasicMaterial( {
+                map: new THREE.VideoTexture(video)
+            } );
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.castShadow = true;
+            sphere.position.set(0, standHeight - sphereSize / 2, 0);
+            oracle.add(sphere);
+        }
+       
+        {
+            const geometry = new THREE.ConeGeometry(standRad, standHeight, 12);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x888888
+            });
+            const stand = new THREE.Mesh(geometry, material);
+            stand.receiveShadow = stand.castShadow = true;
+            stand.position.set(0, standHeight / 2, 0);
+            oracle.add(stand);
+        }
+
+        scene.updateHandlers.push(function(context) {
+            const maxSoundDistance = 2.8;
+
+            const camera = context.camera;
+            if (camera) {
+                const wp = new THREE.Vector3();
+                oracle.getWorldPosition(wp);
+                const dist = new THREE.Vector3().copy(camera.position).sub(wp).length();
+                const volume = Math.max(0.01, Math.min(1, THREE.MathUtils.mapLinear(maxSoundDistance - dist, 0, maxSoundDistance, 0, 1)));
+                if (volume != video.volume) {
+                    video.volume = volume;
+                }
+            }
+        });
+        
+        oracle.rotateY(-Math.PI * 0.14);
+
+        table.putOn(oracle, 0.4, -0.6);
+    }
+
+    //cube
+    {
+        const cubeWrap = new THREE.Object3D();
+        const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        const material = [
+            new THREE.MeshPhongMaterial({map: loader.load(LETTER1_TEXTURE_URL)}),
+            new THREE.MeshPhongMaterial({map: loader.load(LETTER2_TEXTURE_URL)}),
+            new THREE.MeshPhongMaterial({map: loader.load(LETTER3_TEXTURE_URL)}),
+            new THREE.MeshPhongMaterial({map: loader.load(LETTER4_TEXTURE_URL)}),
+            new THREE.MeshPhongMaterial({map: loader.load(LETTER5_TEXTURE_URL)}),
+            new THREE.MeshPhongMaterial({map: loader.load(LETTER6_TEXTURE_URL)}),
+        ];
+        const cube = new THREE.Mesh(geometry, material);
+        cube.castShadow = cube.receiveShadow = true;
+        cube.position.set(0, 0.1, 0);
+        cubeWrap.add(cube);
+
+        cubeWrap.rotateY(Math.PI * 0.5 * 0.3);
+
+        table.putOn(cubeWrap, -0.2, -0.2);
+    }
+
+    //sun
+    {
+        const radius = 1;
+        const widthSegments = 16;
+        const heightSegments = 16;
+
+        const geometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments);
+        const material = new THREE.MeshPhongMaterial({emissive: 0xFFCC33});
+        const sun = new THREE.Mesh(geometry, material);
+
+        {
+            const color = 0xFFCC33;
+            const intensity = 1;
+            const light = new THREE.SpotLight(color, intensity);
+            light.castShadow = true;
+            const maxBufferDimensionSize = Math.sqrt(renderer.capabilities.maxTextureSize);
+            light.shadow.mapSize.height = light.shadow.mapSize.width = 2048 < maxBufferDimensionSize ?
+                maxBufferDimensionSize : 2048;
+            
+            light.target.position.set(0, 0, 0);
+            light.angle = Math.PI / 7;
+            
+            scene.add(light.target);
+            sun.add(light);
+
+            //const cameraHelper = new THREE.CameraHelper(light.shadow.camera);
+            //scene.add(cameraHelper);
+        }
+
+        let time = 0;
+        scene.updateHandlers.push(function(context) {
+            time += 0.1 * (context.delta % (Math.PI * 2));
+            sun.position.set(5 * Math.cos(time), 3.5 * Math.sin(time) + 1, 5 * Math.sin(time));
+        });
+
+        scene.add(sun);
+        
+    }
+
+    //ambient light
+    {
+        const color = 0xFFFFFF;
+        const intensity = 0.2;
+        const light = new THREE.AmbientLight(color, intensity);
+        scene.add(light);
+    }
+}
+
+function adjustCameraAspect(camera, canvas) {
+    const currentCanvasAspect = canvas.clientWidth / canvas.clientHeight;
+    if (camera.aspect != currentCanvasAspect) {
+        camera.aspect = currentCanvasAspect;
+        camera.updateProjectionMatrix();
+    }
+}
+
+function adjustDrawingBufferSize(renderer, canvas) {
+    const bufferSize = new THREE.Vector2();
+    renderer.getSize(bufferSize);
+    if (bufferSize.x != canvas.clientWidth || bufferSize.y != canvas.clientHeight) {
+        renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    }
+}
+
+		})();
+	</script>
+</html>
